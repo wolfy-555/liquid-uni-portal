@@ -1,116 +1,122 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { Search, FileDown, Receipt } from 'lucide-react';
-import { studentService } from '@/services/studentService';
+import { Search, FileDown, Receipt, DollarSign, AlertTriangle, CheckCircle } from 'lucide-react';
 import { billingService } from '@/services/billingService';
 import { StatusBadge } from '@/components/shared/StatusBadge';
+import { DeltaBadge } from '@/components/shared/DeltaBadge';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { SkeletonShimmer } from '@/components/shared/SkeletonShimmer';
+import { SkeletonShimmer, TableSkeleton } from '@/components/shared/SkeletonShimmer';
+
+const StatCard = ({ icon: Icon, label, value, loading = false }: any) => (
+  <div className="card-surface p-5">
+    {loading ? (
+      <div className="space-y-2">
+        <SkeletonShimmer className="h-3 w-16" />
+        <SkeletonShimmer className="h-7 w-20" />
+      </div>
+    ) : (
+      <>
+        <div className="flex items-center justify-between">
+          <span className="text-[12px] font-medium text-[var(--text-secondary)]">{label}</span>
+          <Icon size={15} className="text-[var(--text-muted)]" />
+        </div>
+        <p className="mt-2 text-[24px] font-bold leading-none text-[var(--text-primary)]">{value}</p>
+      </>
+    )}
+  </div>
+);
 
 const Billing = () => {
-  const [studentSearch, setStudentSearch] = useState('');
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [showDropdown, setShowDropdown] = useState(false);
+  const [search, setSearch] = useState('');
 
-  const { data: students } = useQuery({
-    queryKey: ['students-billing', studentSearch],
-    queryFn: () => studentService.getAll({ search: studentSearch }),
-    enabled: studentSearch.length > 0,
+  const { data: allBilling, isLoading } = useQuery({
+    queryKey: ['billing-all'],
+    queryFn: () => billingService.getAll(),
   });
 
-  const { data: selectedStudent } = useQuery({
-    queryKey: ['student', selectedId],
-    queryFn: () => studentService.getById(selectedId!),
-    enabled: !!selectedId,
-  });
+  const totalRevenue = useQuery({ queryKey: ['billing-revenue'], queryFn: () => billingService.getTotalRevenue() });
+  const totalOutstanding = useQuery({ queryKey: ['billing-outstanding'], queryFn: () => billingService.getTotalOutstanding() });
+  const paidMonth = useQuery({ queryKey: ['billing-paid-month'], queryFn: () => billingService.getPaidThisMonth() });
 
-  const { data: billing, isLoading } = useQuery({
-    queryKey: ['billing', selectedId],
-    queryFn: () => billingService.getByStudent(selectedId!),
-    enabled: !!selectedId,
-  });
-
-  const totalDue = billing?.filter(b => b.status !== 'paid').reduce((sum, b) => sum + b.amount, 0) ?? 0;
+  const filtered = search
+    ? allBilling?.filter(b => b.studentName.toLowerCase().includes(search.toLowerCase()) || b.id.toLowerCase().includes(search.toLowerCase()))
+    : allBilling;
 
   return (
     <div>
-      <motion.div className="mb-8" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
-        <h1 className="font-display text-[42px] font-bold leading-[1.05] tracking-[-1.5px] text-[var(--text-primary)]">Billing</h1>
+      <motion.div className="mb-6" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+        <div className="section-label mb-3">
+          <Receipt size={12} /> Billing
+        </div>
+        <h1 className="text-[28px] font-bold tracking-[-0.02em] text-[var(--text-primary)]">Billing</h1>
       </motion.div>
 
-      {/* Student Search */}
-      <div className="relative mb-8 max-w-md">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
-        <input
-          className="w-full rounded-xl border border-[var(--border-glass)] bg-[var(--bg-surface)] py-2.5 pl-9 pr-3 text-sm outline-none backdrop-blur-xl focus:border-[var(--accent-blue-solid)]"
-          placeholder="Search student to view billing..."
-          value={studentSearch}
-          onChange={e => { setStudentSearch(e.target.value); setShowDropdown(true); }}
-          onFocus={() => setShowDropdown(true)}
-        />
-        {showDropdown && students && students.length > 0 && (
-          <div className="absolute z-20 mt-1 w-full rounded-xl border border-[var(--border-glass)] bg-white shadow-lg max-h-48 overflow-y-auto">
-            {students.map(s => (
-              <button
-                key={s.id}
-                onClick={() => { setSelectedId(s.id); setStudentSearch(s.name); setShowDropdown(false); }}
-                className="flex w-full items-center gap-3 px-4 py-2.5 text-sm hover:bg-[var(--bg-surface)] text-left"
-              >
-                <span className="font-medium text-[var(--text-primary)]">{s.name}</span>
-                <span className="font-mono text-xs text-[var(--text-muted)]">{s.studentCode}</span>
-              </button>
-            ))}
+      {/* Stat cards */}
+      <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <StatCard icon={DollarSign} label="Total Revenue" value={`$${(totalRevenue.data ?? 0).toLocaleString()}`} loading={totalRevenue.isLoading} />
+        <StatCard icon={AlertTriangle} label="Outstanding" value={`$${(totalOutstanding.data ?? 0).toLocaleString()}`} loading={totalOutstanding.isLoading} />
+        <StatCard icon={CheckCircle} label="Paid This Month" value={`$${(paidMonth.data ?? 0).toLocaleString()}`} loading={paidMonth.isLoading} />
+      </div>
+
+      {/* Search */}
+      <div className="mb-4 flex items-center gap-3">
+        <div className="relative flex-1 max-w-xs">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+          <input
+            className="input-clean pl-9 text-[13px]"
+            placeholder="Search by student or invoice ID..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className="card-surface overflow-hidden">
+        {isLoading ? (
+          <div className="p-5"><TableSkeleton rows={6} cols={5} /></div>
+        ) : !filtered?.length ? (
+          <EmptyState icon={Receipt} title="No invoices found" description="Adjust your search." />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-[13px]">
+              <thead>
+                <tr className="border-b border-[var(--border-default)]">
+                  <th className="table-header px-5 py-3 text-left">Invoice ID</th>
+                  <th className="table-header px-5 py-3 text-left">Student</th>
+                  <th className="table-header px-5 py-3 text-left">Description</th>
+                  <th className="table-header px-5 py-3 text-right">Amount</th>
+                  <th className="table-header px-5 py-3 text-left">Status</th>
+                  <th className="table-header px-5 py-3 text-left">Due Date</th>
+                  <th className="table-header px-5 py-3 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((b, i) => (
+                  <tr
+                    key={b.id}
+                    className="border-b border-[var(--border-subtle)] table-row-alt table-row-hover transition-colors"
+                    style={{ animation: `staggerFadeIn 0.25s ease-out ${Math.min(i * 0.04, 0.3)}s forwards`, opacity: 0 }}
+                  >
+                    <td className="px-5 py-3 font-mono text-[12px] text-[var(--text-secondary)]">{b.id.toUpperCase()}</td>
+                    <td className="px-5 py-3 font-medium text-[var(--text-primary)]">{b.studentName}</td>
+                    <td className="px-5 py-3 text-[var(--text-secondary)]">{b.description}</td>
+                    <td className="px-5 py-3 text-right font-mono text-[12px] font-semibold text-[var(--text-primary)]">${b.amount.toLocaleString()}</td>
+                    <td className="px-5 py-3"><StatusBadge status={b.status} /></td>
+                    <td className="px-5 py-3 text-[var(--text-secondary)]">{new Date(b.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
+                    <td className="px-5 py-3 text-right">
+                      <button className="btn-ghost py-1 px-2 text-[11px]">
+                        <FileDown size={12} /> PDF
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
-
-      {!selectedId ? (
-        <EmptyState icon={Receipt} title="Select a student" description="Search for a student above to view their billing records." />
-      ) : isLoading ? (
-        <div className="space-y-3">{[...Array(4)].map((_, i) => <SkeletonShimmer key={i} className="h-14" />)}</div>
-      ) : (
-        <motion.div className="glass-surface overflow-hidden" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
-          {/* Header */}
-          <div className="flex items-center justify-between border-b border-[var(--border-glass)] px-6 py-5">
-            <div>
-              <h2 className="font-display text-xl font-bold text-[var(--text-primary)]">{selectedStudent?.name}</h2>
-              <p className="text-sm text-[var(--text-muted)]">{selectedStudent?.studentCode} · Academic Year 2024–25</p>
-            </div>
-            <button className="flex items-center gap-2 rounded-xl border border-[var(--border-glass)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-surface)]">
-              <FileDown size={14} /> Download PDF
-            </button>
-          </div>
-
-          {/* Line Items */}
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-[var(--border-glass)]">
-                <th className="px-6 py-3 text-left font-medium text-[var(--text-secondary)]">Description</th>
-                <th className="px-6 py-3 text-right font-medium text-[var(--text-secondary)]">Amount</th>
-                <th className="px-6 py-3 text-left font-medium text-[var(--text-secondary)]">Due Date</th>
-                <th className="px-6 py-3 text-left font-medium text-[var(--text-secondary)]">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {billing?.map(b => (
-                <tr key={b.id} className="border-b border-[var(--border-glass)] hover:bg-[rgba(0,132,255,0.03)]">
-                  <td className="px-6 py-4 text-[var(--text-primary)]">{b.description}</td>
-                  <td className="px-6 py-4 text-right font-mono text-[var(--text-primary)]">${b.amount.toLocaleString()}</td>
-                  <td className="px-6 py-4 text-[var(--text-secondary)]">{new Date(b.dueDate).toLocaleDateString()}</td>
-                  <td className="px-6 py-4"><StatusBadge status={b.status} /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          {/* Footer */}
-          <div className="flex items-center justify-between border-t border-[var(--border-glass)] px-6 py-5">
-            <span className="text-sm font-medium text-[var(--text-secondary)]">Total Outstanding</span>
-            <span className="font-display text-3xl font-bold text-[var(--text-primary)]">${totalDue.toLocaleString()}</span>
-          </div>
-        </motion.div>
-      )}
     </div>
   );
 };
