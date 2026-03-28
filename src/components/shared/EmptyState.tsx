@@ -9,11 +9,11 @@ interface Props {
 
 export const EmptyState = ({ icon: Icon, title, description, action }: Props) => (
   <div className="flex flex-col items-center justify-center py-16 text-center">
-    <Icon size={48} className="mb-4 text-[var(--text-muted)]" strokeWidth={1.5} />
-    <h3 className="font-display text-xl font-bold text-[var(--text-primary)]">{title}</h3>
-    <p className="mt-1 max-w-sm text-sm text-[var(--text-secondary)]">{description}</p>
+    <Icon size={40} className="mb-3 text-[var(--text-muted)]" strokeWidth={1.5} />
+    <h3 className="text-[15px] font-semibold text-[var(--text-primary)]">{title}</h3>
+    <p className="mt-1 max-w-sm text-[13px] text-[var(--text-secondary)]">{description}</p>
     {action && (
-      <button onClick={action.onClick} className="glass-cta mt-4 px-5 py-2.5 text-sm font-medium">
+      <button onClick={action.onClick} className="btn-primary mt-4">
         {action.label}
       </button>
     )}

@@ -4,22 +4,30 @@ import { motion } from 'framer-motion';
 import { Search, Plus, MoreVertical, Edit, Trash2, BookOpen } from 'lucide-react';
 import { courseService } from '@/services/courseService';
 import { Course } from '@/services/types';
+import { StatusBadge } from '@/components/shared/StatusBadge';
 import { SlideDrawer } from '@/components/shared/SlideDrawer';
 import { FloatingLabelInput } from '@/components/shared/FloatingLabelInput';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { TableSkeleton } from '@/components/shared/SkeletonShimmer';
 
+const tabs = [
+  { label: 'Active', value: 'active' },
+  { label: 'Archived', value: 'archived' },
+  { label: 'Upcoming', value: 'upcoming' },
+];
+
 const Courses = () => {
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
+  const [activeTab, setActiveTab] = useState('active');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editing, setEditing] = useState<Course | null>(null);
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
-  const [form, setForm] = useState({ code: '', title: '', facultyName: '', capacity: '30', semester: 'Fall 2024', credits: '3', enrolled: '0' });
+  const [form, setForm] = useState({ code: '', title: '', facultyName: '', capacity: '30', semester: 'Fall 2024', credits: '3', enrolled: '0', type: 'core' as Course['type'], status: 'active' as Course['status'], startDate: '2024-09-02' });
 
   const { data: courses, isLoading } = useQuery({
-    queryKey: ['courses', search],
-    queryFn: () => courseService.getAll({ search }),
+    queryKey: ['courses', search, activeTab],
+    queryFn: () => courseService.getAll({ search, status: activeTab }),
   });
 
   const createMut = useMutation({
@@ -32,11 +40,11 @@ const Courses = () => {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['courses'] }),
   });
 
-  const closeDrawer = () => { setDrawerOpen(false); setEditing(null); setForm({ code: '', title: '', facultyName: '', capacity: '30', semester: 'Fall 2024', credits: '3', enrolled: '0' }); };
+  const closeDrawer = () => { setDrawerOpen(false); setEditing(null); setForm({ code: '', title: '', facultyName: '', capacity: '30', semester: 'Fall 2024', credits: '3', enrolled: '0', type: 'core', status: 'active', startDate: '2024-09-02' }); };
 
   const openEdit = (c: Course) => {
     setEditing(c);
-    setForm({ code: c.code, title: c.title, facultyName: c.facultyName, capacity: String(c.capacity), semester: c.semester, credits: String(c.credits), enrolled: String(c.enrolled) });
+    setForm({ code: c.code, title: c.title, facultyName: c.facultyName, capacity: String(c.capacity), semester: c.semester, credits: String(c.credits), enrolled: String(c.enrolled), type: c.type, status: c.status, startDate: c.startDate });
     setDrawerOpen(true);
     setMenuOpen(null);
   };
@@ -48,40 +56,68 @@ const Courses = () => {
 
   return (
     <div>
-      <motion.div className="mb-8" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
-        <h1 className="font-display text-[42px] font-bold leading-[1.05] tracking-[-1.5px] text-[var(--text-primary)]">Courses</h1>
+      <motion.div className="mb-6" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+        <div className="section-label mb-3">
+          <BookOpen size={12} /> Courses
+        </div>
+        <h1 className="text-[28px] font-bold tracking-[-0.02em] text-[var(--text-primary)]">Courses</h1>
       </motion.div>
 
-      <div className="mb-6 flex flex-wrap items-center gap-3">
+      {/* Tab bar */}
+      <div className="mb-4 flex items-center gap-6 border-b border-[var(--border-default)]">
+        {tabs.map(tab => (
+          <button
+            key={tab.value}
+            onClick={() => setActiveTab(tab.value)}
+            className={`relative pb-2.5 text-[13px] font-medium transition-colors ${
+              activeTab === tab.value
+                ? 'text-[var(--text-primary)]'
+                : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
+            }`}
+          >
+            {tab.label}
+            {activeTab === tab.value && (
+              <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full bg-[var(--accent-orange)]" />
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* Toolbar */}
+      <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px] max-w-xs">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
           <input
-            className="w-full rounded-xl border border-[var(--border-glass)] bg-[var(--bg-surface)] py-2.5 pl-9 pr-3 text-sm outline-none backdrop-blur-xl focus:border-[var(--accent-blue-solid)] focus:ring-2 focus:ring-[var(--accent-blue-solid)]/20"
+            className="input-clean pl-9 text-[13px]"
             placeholder="Search courses..."
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
         </div>
-        <button onClick={() => { closeDrawer(); setDrawerOpen(true); }} className="glass-cta flex items-center gap-2 px-5 py-2.5 text-sm font-semibold">
-          <Plus size={16} /> New Course
+        <button onClick={() => { closeDrawer(); setDrawerOpen(true); }} className="btn-primary">
+          <Plus size={14} /> New Course
         </button>
       </div>
 
-      <div className="glass-surface overflow-hidden">
+      {/* Table */}
+      <div className="card-surface overflow-hidden">
         {isLoading ? (
-          <div className="p-6"><TableSkeleton rows={6} cols={5} /></div>
+          <div className="p-5"><TableSkeleton rows={6} cols={6} /></div>
         ) : !courses?.length ? (
           <EmptyState icon={BookOpen} title="No courses found" description="Create a new course to get started." action={{ label: 'New Course', onClick: () => setDrawerOpen(true) }} />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-[13px]">
               <thead>
-                <tr className="border-b border-[var(--border-glass)]">
-                  <th className="px-6 py-3 text-left font-medium text-[var(--text-secondary)]">Code</th>
-                  <th className="px-6 py-3 text-left font-medium text-[var(--text-secondary)]">Title</th>
-                  <th className="px-6 py-3 text-left font-medium text-[var(--text-secondary)]">Faculty</th>
-                  <th className="px-6 py-3 text-left font-medium text-[var(--text-secondary)]">Enrollment</th>
-                  <th className="px-6 py-3 text-right font-medium text-[var(--text-secondary)]">Actions</th>
+                <tr className="border-b border-[var(--border-default)]">
+                  <th className="table-header px-5 py-3 text-left">Code</th>
+                  <th className="table-header px-5 py-3 text-left">Title</th>
+                  <th className="table-header px-5 py-3 text-left">Faculty</th>
+                  <th className="table-header px-5 py-3 text-left">Enrollment</th>
+                  <th className="table-header px-5 py-3 text-left">Type</th>
+                  <th className="table-header px-5 py-3 text-left">Start Date</th>
+                  <th className="table-header px-5 py-3 text-left">Status</th>
+                  <th className="table-header px-5 py-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -90,29 +126,36 @@ const Courses = () => {
                   return (
                     <tr
                       key={c.id}
-                      className="border-b border-[var(--border-glass)] transition-colors hover:bg-[rgba(0,132,255,0.03)]"
-                      style={{ animation: `staggerFadeIn 0.35s ease-out ${Math.min(i * 0.06, 0.4)}s forwards`, opacity: 0 }}
+                      className="border-b border-[var(--border-subtle)] table-row-alt table-row-hover transition-colors"
+                      style={{ animation: `staggerFadeIn 0.25s ease-out ${Math.min(i * 0.04, 0.3)}s forwards`, opacity: 0 }}
                     >
-                      <td className="px-6 py-4 font-mono text-xs font-medium text-[var(--accent-blue-solid)]">{c.code}</td>
-                      <td className="px-6 py-4 font-medium text-[var(--text-primary)]">{c.title}</td>
-                      <td className="px-6 py-4 text-[var(--text-secondary)]">{c.facultyName}</td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="h-1.5 w-24 rounded-full bg-[var(--bg-surface)]">
-                            <div className="h-full rounded-full bg-[var(--accent-blue-solid)] transition-all" style={{ width: `${pct}%` }} />
+                      <td className="px-5 py-3 font-mono text-[12px] font-semibold text-[var(--accent-blue)]">{c.code}</td>
+                      <td className="px-5 py-3 font-medium text-[var(--text-primary)]">{c.title}</td>
+                      <td className="px-5 py-3 text-[var(--text-secondary)]">{c.facultyName}</td>
+                      <td className="px-5 py-3">
+                        <div className="flex items-center gap-2">
+                          <div className="h-1.5 w-20 rounded-full bg-[var(--border-subtle)]">
+                            <div className="h-full rounded-full bg-[var(--accent-blue)] transition-all" style={{ width: `${pct}%` }} />
                           </div>
-                          <span className="text-xs text-[var(--text-muted)]">{c.enrolled}/{c.capacity}</span>
+                          <span className="text-[11px] text-[var(--text-muted)]">{c.enrolled}/{c.capacity}</span>
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-right">
+                      <td className="px-5 py-3">
+                        <span className={`tag-pill ${c.type === 'core' ? 'tag-blue' : c.type === 'elective' ? 'tag-orange' : 'tag-purple'}`}>
+                          {c.type}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3 text-[var(--text-secondary)]">{new Date(c.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
+                      <td className="px-5 py-3"><StatusBadge status={c.status} /></td>
+                      <td className="px-5 py-3 text-right">
                         <div className="relative inline-block">
-                          <button onClick={() => setMenuOpen(menuOpen === c.id ? null : c.id)} className="rounded-lg p-1.5 hover:bg-[var(--bg-surface)]" aria-label="Actions">
-                            <MoreVertical size={16} className="text-[var(--text-muted)]" />
+                          <button onClick={() => setMenuOpen(menuOpen === c.id ? null : c.id)} className="rounded-md p-1 hover:bg-[var(--page-bg)]" aria-label="Actions">
+                            <MoreVertical size={14} className="text-[var(--text-muted)]" />
                           </button>
                           {menuOpen === c.id && (
-                            <div className="absolute right-0 z-20 mt-1 w-36 rounded-xl border border-[var(--border-glass)] bg-white py-1 shadow-lg">
-                              <button onClick={() => openEdit(c)} className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-[var(--bg-surface)]"><Edit size={14} /> Edit</button>
-                              <button onClick={() => { deleteMut.mutate(c.id); setMenuOpen(null); }} className="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50"><Trash2 size={14} /> Delete</button>
+                            <div className="absolute right-0 z-20 mt-1 w-32 rounded-lg border border-[var(--border-default)] bg-white py-1 shadow-sm">
+                              <button onClick={() => openEdit(c)} className="flex w-full items-center gap-2 px-3 py-1.5 text-[13px] hover:bg-[var(--page-bg)]"><Edit size={13} /> Edit</button>
+                              <button onClick={() => { deleteMut.mutate(c.id); setMenuOpen(null); }} className="flex w-full items-center gap-2 px-3 py-1.5 text-[13px] text-[var(--accent-red)] hover:bg-[var(--tag-red-bg)]"><Trash2 size={13} /> Delete</button>
                             </div>
                           )}
                         </div>
@@ -127,16 +170,16 @@ const Courses = () => {
       </div>
 
       <SlideDrawer open={drawerOpen} onClose={closeDrawer} title={editing ? 'Edit Course' : 'New Course'}>
-        <div className="space-y-5">
+        <div className="space-y-4">
           <FloatingLabelInput id="c-code" label="Course Code" value={form.code} onChange={e => setForm(f => ({ ...f, code: e.target.value }))} />
           <FloatingLabelInput id="c-title" label="Title" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
           <FloatingLabelInput id="c-faculty" label="Faculty Name" value={form.facultyName} onChange={e => setForm(f => ({ ...f, facultyName: e.target.value }))} />
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-3">
             <FloatingLabelInput id="c-cap" label="Capacity" type="number" value={form.capacity} onChange={e => setForm(f => ({ ...f, capacity: e.target.value }))} />
             <FloatingLabelInput id="c-credits" label="Credits" type="number" value={form.credits} onChange={e => setForm(f => ({ ...f, credits: e.target.value }))} />
           </div>
           <FloatingLabelInput id="c-sem" label="Semester" value={form.semester} onChange={e => setForm(f => ({ ...f, semester: e.target.value }))} />
-          <button onClick={handleSubmit} disabled={createMut.isPending} className="glass-cta mt-4 w-full py-3 text-sm font-semibold disabled:opacity-60">
+          <button onClick={handleSubmit} disabled={createMut.isPending} className="btn-primary mt-4 w-full justify-center py-2.5 disabled:opacity-50">
             {editing ? 'Update Course' : 'Create Course'}
           </button>
         </div>
